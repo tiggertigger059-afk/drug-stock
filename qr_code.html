@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>สร้าง QR ยา</title>
+  <style>
+    body { font-family: sans-serif; max-width: 420px; margin: 20px auto; padding: 0 16px; text-align: center; }
+    input { width: 100%; padding: 10px; margin: 6px 0; font-size: 16px; box-sizing: border-box; }
+    button { padding: 10px 20px; font-size: 16px; border: none; border-radius: 8px; background: #2563eb; color: white; cursor: pointer; }
+    #qr { margin: 20px auto; display: inline-block; }
+  </style>
+</head>
+<body>
+  <h1>สร้าง QR Code ยา</h1>
+
+  <input id="code" placeholder="รหัสยา เช่น P001">
+  <input id="name" placeholder="ชื่อยา เช่น Paracetamol 500mg">
+  <button onclick="makeQR()">สร้าง QR</button>
+
+  <div><div id="qr"></div></div>
+  <p id="label"></p>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script>
+    function makeQR() {
+      const code = document.getElementById("code").value.trim();
+      const name = document.getElementById("name").value.trim();
+      if (!code || !name) { alert("กรอกรหัสและชื่อยาให้ครบ"); return; }
+
+      const text = code + "|" + name;
+
+      const box = document.getElementById("qr");
+      box.innerHTML = "";
+      new QRCode(box, { text: text, width: 220, height: 220 });
+
+      document.getElementById("label").textContent = code + " - " + name + " (คลิกขวาที่ QR > บันทึกรูปภาพ)";
+    }
+  </script>
+</body>
+</html>

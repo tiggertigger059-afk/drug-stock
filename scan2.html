@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ระบบเบิก/เติมยา</title>
+  <style>
+    body { font-family: sans-serif; max-width: 600px; margin: 20px auto; padding: 0 16px; }
+    h1, h2 { text-align: center; }
+    #reader { width: 100%; }
+    #card { display: none; background: #eef4ff; padding: 16px; border-radius: 12px; margin-top: 16px; }
+    input[type=number] { padding: 8px; font-size: 16px; width: 100px; }
+    button { padding: 10px 20px; font-size: 16px; border: none; border-radius: 8px; background: #2563eb; color: white; cursor: pointer; margin-top: 8px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    th, td { border: 1px solid #ccc; padding: 6px; text-align: left; font-size: 14px; }
+    th { background: #f0f0f0; }
+  </style>
+</head>
+<body>
+  <h1>ระบบเบิก/เติมยา</h1>
+
+  <div id="reader"></div>
+  <div style="text-align:center"><button onclick="startScan()">เปิดกล้องสแกน</button></div>
+
+  <div id="card">
+    <h2 id="drugName"></h2>
+    <p>รหัส: <b id="drugCode"></b> | คงเหลือ: <b id="drugStock"></b></p>
+    <p>วันที่: <b id="today"></b></p>
+    <label><input type="radio" name="type" value="เบิก" checked> เบิก</label>
+    <label><input type="radio" name="type" value="เติม"> เติม</label>
+    <p>จำนวน: <input type="number" id="qty" min="1" value="1"></p>
+    <button onclick="save()">บันทึก</button>
+  </div>
+
+  <h2>สต็อกคงเหลือ</h2>
+  <table id="stockTable"></table>
+
+  <h2>ประวัติการเบิก/เติม</h2>
+  <table id="logTable"></table>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+  <script>
+    let stock = JSON.parse(localStorage.getItem("stock") || "{}");
+    let log = JSON.parse(localStorage.getItem("log") || "[]");
+    let current = null;
+    let scanning = false;
+    const qr = new Html5Qrcode("reader");
+
+    function esc(s) {
+      const d = document.createElement("div");
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    function startScan() {
+      if (scanning) return;
+      scanning = true;
+      document.getElementById("card").style.display = "none";
+      qr.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, onScan)
+        .catch(err => { scanning = false; alert("เปิดกล้องไม่ได้: " + err); });
+    }
+
+    function onScan(text) {
+  if (!scanning) return;
+
+  // รับได้ทั้งแบบ JSON และแบบ "รหัส|ชื่อ" และแบบข้อความธรรมดา
+  let d;
+  try {
+    d = JSON.parse(text);
+  } catch (e) {
+    if (text.includes("|")) {
+      const p = text.split("|");
+      d = { code: p[0].trim(), name: p[1].trim() };
+    } else {
+      d = { code: text.trim(), name: text.trim() };
+    }
+  }
+  if (!d.code) d.code = text;
+  if (!d.name) d.name = d.code;
+
+  scanning = false;
+  qr.stop().then(() => {
+    current = d;
+    document.getElementById("drugName").textContent = d.name;
+    document.getElementById("drugCode").textContent = d.code;
+    document.getElementById("drugStock").textContent = stock[d.code] ? stock[d.code].qty : 0;
+    document.getElementById("today").textContent = new Date().toLocaleString("th-TH");
+    document.getElementById("qty").value = 1;
+    document.getElementById("card").style.display = "block";
+    document.getElementById("card").scrollIntoView();
+  }).catch(() => {
+    document.getElementById("card").style.display = "block";
+  });
+}
+
+    function save() {
+      const qty = parseInt(document.getElementById("qty").value);
+      const type = document.querySelector("input[name=type]:checked").value;
+      if (!qty || qty < 1) { alert("กรอกจำนวนให้ถูกต้อง"); return; }
+
+      if (!stock[current.code]) stock[current.code] = { name: current.name, qty: 0 };
+
+      if (type === "เบิก") {
+        if (qty > stock[current.code].qty) { alert("ยาในสต็อกไม่พอ"); return; }
+        stock[current.code].qty -= qty;
+      } else {
+        stock[current.code].qty += qty;
+      }
+
+      log.unshift({
+        time: new Date().toLocaleString("th-TH"),
+        name: current.name,
+        type: type,
+        qty: qty
+      });
+
+      localStorage.setItem("stock", JSON.stringify(stock));
+      localStorage.setItem("log", JSON.stringify(log));
+
+      document.getElementById("card").style.display = "none";
+      render();
+      alert("บันทึกแล้ว");
+    }
+
+    function render() {
+      let s = "<tr><th>รหัส</th><th>ชื่อยา</th><th>คงเหลือ</th></tr>";
+      for (const code in stock) {
+        s += "<tr><td>" + esc(code) + "</td><td>" + esc(stock[code].name) + "</td><td>" + stock[code].qty + "</td></tr>";
+      }
+      document.getElementById("stockTable").innerHTML = s;
+
+      let l = "<tr><th>วันที่</th><th>ยา</th><th>ประเภท</th><th>จำนวน</th></tr>";
+      log.forEach(r => {
+        l += "<tr><td>" + esc(r.time) + "</td><td>" + esc(r.name) + "</td><td>" + r.type + "</td><td>" + r.qty + "</td></tr>";
+      });
+      document.getElementById("logTable").innerHTML = l;
+    }
+
+    render();
+  </script>
+</body>
+</html>
